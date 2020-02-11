@@ -11,3 +11,5 @@ Install:
 5. Open web-interface in you browser 
 
 Default login:password is admin:admin
+
+contact: jarets[]amigo.by
