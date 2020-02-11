@@ -1,2 +1,2 @@
 # speedtest-zond
-zond for raspberry PI
+zond for Banana PI
