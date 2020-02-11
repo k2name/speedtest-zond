@@ -2054,20 +2054,6 @@ def worker():
 
     # Подключаем БД
     global data
-    #data = sql()
-
-    '''
-    result = data.connect()
-    if result == False:
-        sys.exit(0)
-
-    # Получаем статус проверки
-    result = data.get_status()
-    if result != False:
-        status = result[0]
-    else:
-        sys.exit(0)
-    '''
 
     # Получаем ID сервера
     global serverid
@@ -2080,8 +2066,6 @@ def worker():
         serverid.append(28960)
 
     # узнаем текущее время
-    #dt = datetime.datetime.now()
-    #unixtime = int(time.mktime(dt.timetuple()))
     unixtime = int(time.time())
 
     # погнали тест. Получаем на выходе скорости
