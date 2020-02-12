@@ -1,0 +1,14 @@
+[Unit]
+Description=Speedtest service
+After=network.target auditd.service
+
+[Service]
+Type=simple
+#Type=forking
+WorkingDirectory=/var/www/
+ExecStart=/usr/bin/python3 /var/www/speedtest.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+Alias=speedtest.service
