@@ -12,4 +12,4 @@ Install:
 
 Default login:password is admin:admin
 
-contact: jarets[]amigo.by
+telegramm @k2name
