@@ -9,17 +9,17 @@ Install:
 5. Open web-interface in you browser 
 
 Install web-server on debian-based OS:
-  apt-get update
-  apt-get upgrade
-  apt-get install nginx php7.3-curl php7.3-gd php7.3-mbstring php7.3-sqlite3 sqlite3
+1. apt-get update
+2. apt-get upgrade
+3. apt-get install nginx php7.3-curl php7.3-gd php7.3-mbstring php7.3-sqlite3 sqlite3
 
 Systemd:
-  Move sample speedtest.service from folder to /etc/systemd/system
-  Edit path in speedtest.service file if need
-  systemctl daemon-reload
-  systemctl enable speedtest.service
-  systemctl start speedtest.service
-  systemctl status speedtest.service
+1. Move sample speedtest.service from folder to /etc/systemd/system
+2. Edit path in speedtest.service file if need
+3. systemctl daemon-reload
+4. systemctl enable speedtest.service
+5. systemctl start speedtest.service
+6. systemctl status speedtest.service
 
 Default login:password is admin:admin
 
