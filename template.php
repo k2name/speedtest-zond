@@ -33,7 +33,7 @@ function get_nav()
 
       <ul class="nav navbar-nav">
         <li class="nav-item active">
-          <a class="nav-link" href="./index.php">Speedtest v0.1</a>
+          <a class="nav-link" href="./index.php">Speedtest v0.2</a>
         </li>
       </ul>
 
