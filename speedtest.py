@@ -19,12 +19,10 @@ import os
 import re
 import csv
 import sys
-import time
 import math
 import errno
 import signal
 import socket
-import sqlite3
 import timeit
 import datetime
 import platform
@@ -774,9 +772,9 @@ def print_dots(shutdown_event):
         if shutdown_event.isSet():
             return
 
-        #sys.stdout.write('.')
-        #if current + 1 == total and end is True:
-        #    sys.stdout.write('\n')
+        sys.stdout.write('.')
+        if current + 1 == total and end is True:
+            sys.stdout.write('\n')
         sys.stdout.flush()
     return inner
 
@@ -1831,9 +1829,6 @@ def shell():
 
     args = parse_args()
 
-    global serverid
-    args.server = serverid
-
     # Print the version and exit
     if args.version:
         version()
@@ -1872,6 +1867,7 @@ def shell():
     else:
         callback = print_dots(shutdown_event)
 
+    printer('Retrieving speedtest.net configuration...', quiet)
     try:
         speedtest = Speedtest(
             source_address=args.source,
@@ -1894,15 +1890,18 @@ def shell():
                 line = ('%(id)5s) %(sponsor)s (%(name)s, %(country)s) '
                         '[%(d)0.2f km]' % server)
                 try:
-                    line=True
+                    printer(line)
                 except IOError:
                     e = get_exception()
                     if e.errno != errno.EPIPE:
                         raise
         sys.exit(0)
 
+    printer('Testing from %(isp)s (%(ip)s)...' % speedtest.config['client'],
+            quiet)
 
     if not args.mini:
+        printer('Retrieving speedtest.net server list...', quiet)
         try:
             speedtest.get_servers(servers=args.server, exclude=args.exclude)
         except NoMatchedServers:
@@ -1911,6 +1910,7 @@ def shell():
                 ', '.join('%s' % s for s in args.server)
             )
         except (ServersRetrievalError,) + HTTP_ERRORS:
+            printer('Cannot retrieve speedtest server list', error=True)
             raise SpeedtestCLIError(get_exception())
         except InvalidServerIDType:
             raise SpeedtestCLIError(
@@ -1918,42 +1918,45 @@ def shell():
                 'be an int' % ', '.join('%s' % s for s in args.server)
             )
 
+        if args.server and len(args.server) == 1:
+            printer('Retrieving information for the selected server...', quiet)
+        else:
+            printer('Selecting best server based on ping...', quiet)
         speedtest.get_best_server()
     elif args.mini:
         speedtest.get_best_server(speedtest.set_mini_server(args.mini))
 
     results = speedtest.results
-    #print results
+
+    printer('Hosted by %(sponsor)s (%(name)s) [%(d)0.2f km]: '
+            '%(latency)s ms' % results.server, quiet)
 
     if args.download:
+        printer('Testing download speed', quiet,
+                end=('', '\n')[bool(debug)])
         speedtest.download(
             callback=callback,
             threads=(None, 1)[args.single]
         )
-        #printer('Download: %0.2f M%s/s' %
-        #        ((results.download / 1000.0 / 1000.0) / args.units[1],
-        #         args.units[0]),
-        #        quiet)
-        
-        # !!! download
-        download = (results.download / 1000.0 / 1000.0)
-        #print download
+        printer('Download: %0.2f M%s/s' %
+                ((results.download / 1000.0 / 1000.0) / args.units[1],
+                 args.units[0]),
+                quiet)
+    else:
+        printer('Skipping download test', quiet)
 
     if args.upload:
+        printer('Testing upload speed', quiet,
+                end=('', '\n')[bool(debug)])
         speedtest.upload(
             callback=callback,
             pre_allocate=args.pre_allocate,
             threads=(None, 1)[args.single]
         )
-        #printer('Upload: %0.2f M%s/s' %
-        #        ((results.upload / 1000.0 / 1000.0) / args.units[1],
-        #         args.units[0]),
-        #        quiet)
-        # !!! upload
-        upload = (results.upload / 1000.0 / 1000.0)
-        #print upload
-        return download, upload
-
+        printer('Upload: %0.2f M%s/s' %
+                ((results.upload / 1000.0 / 1000.0) / args.units[1],
+                 args.units[0]),
+                quiet)
     else:
         printer('Skipping upload test', quiet)
 
@@ -1978,99 +1981,9 @@ def shell():
         printer('Share results: %s' % results.share())
 
 
-# k2name addon
-class sql:
-    def connect(self):
-        global conn
-        # Подключаем файл базы данных
-        try:
-            conn = sqlite3.connect('db/base.db')
-            conn.isolation_level = None
-            conn.text_factory = str
-        except:
-            print("Файл базы данных не найден!")
-            sys.exit(0)
-        # Коннектимся к Базе данных
-        try:
-            cur = conn.cursor()
-            return True
-        except sqlite3.Error:
-            print("Соединение с БД НЕ установлено!!!")
-            return False
-    
-    def get_status(self):
-        global conn
-        cur = conn.cursor()
-        try:
-            cur.execute("select status from settings where id=1")
-            conn.commit()
-            data = cur.fetchone()
-            return data
-        except:
-            return False
-
-    def get_serverid(self):
-        global conn
-        cur = conn.cursor()
-        try:
-            cur.execute("select server from settings where id=1")
-            conn.commit()
-            data = cur.fetchone()
-            return data
-        except:
-            return False
-
-    def get_waittime(self):
-        global conn
-        cur = conn.cursor()
-        try:
-            cur.execute("select waittime from settings where id=1")
-            conn.commit()
-            data = cur.fetchone()
-            return data
-        except:
-            return False
-
-    def insert_result(self, unixtime, server_name, download, upload):
-        global conn
-        cur = conn.cursor()
-
-        try:
-            cur.execute("INSERT into results VALUES(null, "+str(unixtime)+", '"+str(server_name)+"', "+str(download)+", "+str(upload)+");")
-            conn.commit()
-            return True
-        except:
-            return False
-        
-
-    def disconnect(self):
-        global conn
-        # Закрываем за собой коннект
-        conn.close()
-
-
-def worker():
-    os.system('clear')
-
-    # Подключаем БД
-    global data
-
-    # Получаем ID сервера
-    global serverid
-    serverid = []
-    result = data.get_serverid()
-    
-    if result != False:
-        serverid.append(result[0])
-    else:
-        serverid.append(28960)
-
-    # узнаем текущее время
-    unixtime = int(time.time())
-
-    # погнали тест. Получаем на выходе скорости
+def main():
     try:
-        download, upload = shell()
+        shell()
     except KeyboardInterrupt:
         printer('\nCancelling...', error=True)
     except (SpeedtestException, SystemExit):
@@ -2081,42 +1994,6 @@ def worker():
             if not msg:
                 msg = '%r' % e
             raise SystemExit('ERROR: %s' % msg)
-
-
-    # отдать на запись в БД
-    download = round(download, 1)
-    upload = round(upload, 1)
-    result = data.insert_result(unixtime, serverid[0], download, upload)
-
-
-def main():
-    # Подключаем БД
-    global data
-    data = sql()
-    result = data.connect()
-    if result == False:
-        sys.exit(0)
-
-    while True:
-        # Получаем статус проверки
-        result = data.get_status()
-        if result != False:
-            status = result[0]
-	    #print status
-
-        if status == 1:
-            worker()
-
-        result = data.get_waittime()
-        if result != False:
-            waittime=int(result[0])*60
-        else:
-            waittime = 600
-
-        #print waittime
-
-        data.disconnect
-        time.sleep(waittime)
 
 
 if __name__ == '__main__':

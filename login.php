@@ -13,6 +13,15 @@ function generateCode($length=6) {
     return $code;
 }
 
+# костыль, который возвращает количество строк в ответе
+function SqliteNumRows($query){
+  $numRows = 0;
+    while($rows = $query->fetchArray()){
+      ++$numRows;
+    }
+  return $numRows;
+}
+
 if(isset($_POST['submit']))
 {
     $db = new SQLite3('./db/base.db');
@@ -22,7 +31,7 @@ if(isset($_POST['submit']))
 
     // Вытаскиваем из БД запись, у которой логин равняеться введенному
     $result = $db->query("SELECT * FROM users WHERE login='{$login}' LIMIT 1");
-    if((count($result))>0)
+    if(SqliteNumRows($result)>0)
     {
         $row = $result->fetchArray();
         $id = $row['id'];

@@ -95,7 +95,7 @@ function get_graf($result, $max_time, $min_time)
         $i += 1;
         $time = $row['time'];
 
-        if ($i != $numrows)
+        if ($i <= $numrows)
         {
           $data .= "[new Date(".date('Y',$time).", ".strval(intval(date('m', $time))-1).", ".date('d',$time).", ".date('H',$time).", ".date('i',$time).", ".date('s',$time)."), ".$row['download'].", ".$row['upload']."],";
         }
@@ -153,6 +153,166 @@ function get_graf($result, $max_time, $min_time)
   return $js;
 }
 
+# график
+function get_ping_graf($min_time, $max_time)
+{
+  # Подготовка данных
+  # выбираем уникальные таймштампы из БД в пределах диапазона
+  $timestamps = get_pingtest_timestamps($min_time, $max_time);
+  if ($timestamps != NULL)
+  {
+    $pingdata = [];
+    while ($row = $timestamps->fetchArray())
+    {
+      #!!!!!!!!!
+      # Логика следующая. Берем уникальные тамштампы
+      # по ним делаем выборки
+      # по ним собираем массив в массиве. Ассоциативнойтьс сделать по таймштампу
+      
+      # для каждого таймштампа вытягиваем сервера и значения
+      $result = get_pingtest_data($row['testtime']);
+      if ($result != NULL)
+      {
+        $srv=[];
+        # полученный список загоняем в массив
+        while ($subrow = $result->fetchArray())
+        {
+          $srv[$subrow['server']] = $subrow['testresult'];
+        }
+        # полученный массив загоняем как значение в общий массив
+        $pingdata[intval($row['testtime'])]=$srv;
+      }
+    }
+  }
+
+
+  # получаем уникальные названия серваков учавствовавших в тесте
+  /*
+  $result = get_pingtest_serverlist($min_time, $max_time);
+  if (($result !=NULL) && ($timestamps != NULL))
+  {
+    $serverlist = [];
+    while ($server = $result->fetchArray())
+    {
+      array_push($serverlist, $server[0]);
+    }
+  }
+  else 
+  {
+    $result = NULL;
+  }
+  */
+
+  $result = get_pingtest_serverlist();
+  if (($result !=NULL) && ($timestamps != NULL))
+  {
+    $serverlist = $result->fetchArray();
+    $serverlist = explode("|", $serverlist[0]);
+  }
+  else 
+  {
+    $result = NULL;
+  }
+
+  # Составляем матрицу для графика
+  $s = 0;
+  $data = "";
+  # $serverlist
+  if ($result != NULL)
+  {
+    # для каждого таймштампа получаем массив значений
+    foreach ($pingdata as $time => $servers)
+    {
+      $s += 1;
+      $s2 = 0;
+      $server_data = "";
+      # в каждом имеющемся массиве ищем сервера по списку
+      foreach ($serverlist as $server) 
+      {
+        $value = "";
+        $s2 +=1;
+        # если в массиве имеется значение для нужного нам сервера - добавляем значение в строку. Если нет - ставим ноль
+        if (isset($servers[$server]))
+        {
+          $value .= $servers[$server];
+        }
+        else
+        {
+          $value .= "0";
+        }
+
+        # после каждого не последнего эллемента добавляем запятую
+        if ($s2 != count($serverlist))
+        {
+          $value .= ', ';
+        }
+
+        $server_data .= $value;
+      }
+      
+      # набиваем строку для графика. СБорка
+      $data .= "[new Date(".date('Y',$time).", ".strval(intval(date('m', $time))-1).", ".date('d',$time).", ".date('H',$time).", ".date('i',$time).", ".date('s',$time)."), ".$server_data."]"; 
+
+      # если это не последний таймштамп - добавляем запятую в конце
+      if ($s != count($pingdata))
+      {
+        $data .= ",";        
+      }
+    }
+  }
+  else
+  {
+    return NULL;
+  }
+
+
+  # начало JS
+  $js = '
+          <!-- График -->
+          <script type="text/javascript">
+            google.charts.load(\'current\', {packages: [\'corechart\', \'line\']});
+            google.charts.setOnLoadCallback(drawLineColors);
+
+            function drawLineColors() {
+                  var data = new google.visualization.DataTable();
+                  data.addColumn(\'datetime\', \'X\');';
+  
+  foreach ($serverlist as $server) 
+  {
+    $js .= "                data.addColumn('number', '".$server."');";
+  }
+
+  $js .= '
+                  data.addRows([';
+
+  # данные для JS
+  $js .= $data;
+  
+  # окончание JS
+  $js .=']);
+
+                  var options = {
+                    title: \'Отчет за '.secondsToTime($max_time-$min_time).'\',
+                    hAxis: {
+                      format: \'(dd.MM.yy HH:mm:ss)\',
+                      title: \'Дата/Время\'
+                    },
+                    vAxis: {
+                      title: \'Время отклика ms\'
+                    }
+                  };
+
+                  var chart = new google.visualization.LineChart(document.getElementById(\'chart_div_ping\'));
+                  chart.draw(data, options);
+                }
+          </script>
+          <div id="chart_div_ping"></div>
+          <!-- /График -->
+          ';
+  
+  return $js;
+}
+
 # главная страница
 function stats($type)
 {
@@ -163,6 +323,7 @@ function stats($type)
   {
     $row = $result->fetchArray();
     $status = $row['status'];
+    $pingstatus = $row['pingstatus'];
   }
   else
   {
@@ -190,28 +351,50 @@ function stats($type)
     $dif_time = 60*60*24;
     $min_time = $max_time-$dif_time;
   }
-  $result = get_data($min_time, $max_time);
+  # запрашиваем результаты спидеста
+  $result = get_speedtest_data($min_time, $max_time);
   if ($result != NULL)
   {
     $body .= get_graf($result, $max_time, $min_time);
   }
   else
   {
-    $body .= '<div class="alert alert-danger"><strong>Внимание!</strong> В БД отсутствуют значения за указанный период времени!!!</div>';
+    $body .= '<div class="alert alert-danger"><strong>Внимание!</strong> В БД отсутствуют значения Speedtest за указанный период времени!!!</div>';
   }
   
-  
+  # второй график для пингов. 
+  $result = get_ping_graf($min_time, $max_time);
+  if ($result != NULL)
+  {
+    $body .= $result;
+  }
+  else
+  {
+    $body .= '<div class="alert alert-danger"><strong>Внимание!</strong> В БД отсутствуют значения Pingtest за указанный период времени!!!</div>';
+  }
+
+
   # закрываем центральный блок
   $body .= '</div>';
 
   # отображаем бар с статусом работы
+  # speedtest
   if ($status==1)
   {
-    $status = '          <p><div class="alert alert-success">Статус: <strong>Включено!</strong></div></p>';
+    $status = '          <p><div class="alert alert-success">Статус speedtest: <strong>Включено!</strong></div></p>';
   }
   else
   {
-    $status = '          <div class="alert alert-danger">Статус: <strong>Выключено!</strong></div>';
+    $status = '          <p><div class="alert alert-danger">Статус speedtest: <strong>Выключено!</strong></div></p>';
+  }
+  # pingtest
+  if ($pingstatus==1)
+  {
+    $status .= '          <p><div class="alert alert-success">Статус pingtest: <strong>Включено!</strong></div></p>';
+  }
+  else
+  {
+    $status .= '          <p><div class="alert alert-danger">Статус pingtest: <strong>Выключено!</strong></div></p>';
   }
 
 
@@ -265,12 +448,15 @@ function get_settings_page()
     $status = $settings['status'];
     $server = $settings['server'];
     $waittime = $settings['waittime'];
+    $pingstatus = $settings['pingstatus'];
+    $pingtarget = str_replace("|", "\n", $settings['pingtarget']);
     $error = False;
   }
   else
   {
     $error = True;
   }
+
 
   if ($error != True)
   {
@@ -301,7 +487,7 @@ function get_settings_page()
         $body .= 'checked';
       }  
     $body .='>
-              <label class="form-check-label">Состояние тестирования (вкл/выкл)</label>
+              <label class="form-check-label">Состояние speedtest-тестирования (вкл/выкл)</label>
             </div>
 
             <div class="form-group">
@@ -326,13 +512,33 @@ function get_settings_page()
 
     $body .= '</select>
             </div>
+            <hr>
+            <div class="form-check-inline">
+              <input type="checkbox" class="form-check-input" name="pingstatus" ';
+    
+    # проверка статуса
+    if ($pingstatus == 1) 
+      {
+        $body .= 'checked';
+      }  
+    $body .='>
+              <label class="form-check-label">Состояние ping-тестирования (вкл/выкл)</label>
+            </div>
 
             <div class="form-group">
-              <label for="usr">Частота тестирования (мин):</label>
+              <label for="comment">Цели для ping:</label>
+              <textarea class="form-control" rows="5" id="pingtarget" name="pingtarget" placeholder="По одному адресу или домену в строку">'.$pingtarget.'</textarea>
+            </div> 
+            <hr>
+            <div class="form-group">
+              <label for="usr"><h4>Общие настройки</h4></label>
+              <p><label for="usr2">Частота тестирования (мин):</label></p>
               <input type="text" class="form-control" id="waittime" name="waittime" placeholder="5" value="'.$waittime.'">
             </div>
 
-            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <div class="row">
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
             </form>
           </div>
         <div class="col-2"><p>&nbsp;</p>

@@ -6,7 +6,7 @@ After=network.target auditd.service
 Type=simple
 #Type=forking
 WorkingDirectory=/var/www/
-ExecStart=/usr/bin/python3 /var/www/speedtest.py
+ExecStart=/usr/bin/python3 /var/www/tester.py
 Restart=always
 
 [Install]

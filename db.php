@@ -54,8 +54,8 @@ function get_current_settings()
     }
 }
 
-# получаем данные из БД
-function get_data($min, $max)
+# получаем данные из БД по спидтесту
+function get_speedtest_data($min, $max)
 {
     global $db;
     $result = $db->query("SELECT * FROM `results` WHERE `time` BETWEEN {$min} AND {$max};");
@@ -64,6 +64,69 @@ function get_data($min, $max)
         return $result;
     }
     else 
+    {
+        return NULL;
+    }
+}
+
+# получаем уникальные выборки
+function get_pingtest_timestamps($min, $max)
+{
+    global $db;
+    $result = $db->query("SELECT DISTINCT(`testtime`) FROM `pingresults` WHERE `testtime` BETWEEN {$min} AND {$max};");
+    if(SqliteNumRows($result)>0)
+    {
+        return $result;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+# получаем уникальные серверы
+# Если работает по результатам
+/*
+function get_pingtest_serverlist($min, $max)
+{
+    global $db;
+    $result = $db->query("SELECT DISTINCT(`server`) FROM `pingresults` WHERE `testtime` BETWEEN {$min} AND {$max};");
+    if(SqliteNumRows($result)>0)
+    {
+        return $result;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+*/
+
+# если работаем по настройкам
+function get_pingtest_serverlist()
+{
+    global $db;
+    $result = $db->query("SELECT `pingtarget` FROM `settings` WHERE `id`=1;");
+    if(SqliteNumRows($result)>0)
+    {
+        return $result;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+# получаем данные из БД по пингтесту
+function get_pingtest_data($timestamp)
+{
+    global $db;
+    $result = $db->query("SELECT * FROM `pingresults` WHERE `testtime`={$timestamp};");
+    if(SqliteNumRows($result)>0)
+    {
+        return $result;
+    }
+    else
     {
         return NULL;
     }
@@ -137,6 +200,7 @@ function add_servers_list($list, $count)
 function save_settings()
 {
     global $db;
+    # проверка статуса speedtest
     if(isset($_POST['status']))
     {
         $status = 1;
@@ -145,12 +209,25 @@ function save_settings()
     {
         $status = 0;
     }
+    # проверка статуса pingtest
+    if(isset($_POST['pingstatus']))
+    {
+        $pingstatus = 1;
+    }
+    else
+    {
+        $pingstatus = 0;
+    }
 
     $server = $_POST['server'];
     $waittime =  $_POST['waittime'];
 
+    # очистка от непечатаемых символов. Собираем все в одну строку с разделителем!!!
+    $pingtarget = str_replace("\n", "|", $_POST['pingtarget']);
+    $pingtarget = preg_replace('/[\x00-\x1F\x7F]/u', '', $pingtarget);
+
     # загоняем в БД данные
-    $result = $db->exec("UPDATE `settings` SET `status`='{$status}', `server`='{$server}', `waittime`='{$waittime}' WHERE id=1;");
+    $result = $db->exec("UPDATE `settings` SET `status`='{$status}', `server`='{$server}', `waittime`='{$waittime}', `pingstatus`='{$pingstatus}', `pingtarget`='{$pingtarget}' WHERE id=1;");
 }
 
 # Удаляем список серверов в таблице
@@ -158,6 +235,7 @@ function clear_history()
 {
     global $db;
     $result = $db->exec("DELETE from `results` where `id`>0;");
+    $result = $db->exec("DELETE from `pingresults` where `id`>0;");
 }
 
 # получаем список пользователей из БД
@@ -246,8 +324,4 @@ function del_user()
     }
 }
 
-
 ?>
-
-
-
