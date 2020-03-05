@@ -18,7 +18,7 @@ function get_header()
       <script src="./template/popper.min.js"></script>
       <script src="./template/bootstrap.min.js"></script>
       <script type="text/javascript" src="./template/gcharts.js"></script>
-      <title>Speedtest v 0.1</title>
+      <title>Speedtest v 0.2</title>
     </head>
     <body>';
   return $header;
